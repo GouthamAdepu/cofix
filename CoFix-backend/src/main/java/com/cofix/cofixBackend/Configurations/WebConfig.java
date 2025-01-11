@@ -32,8 +32,8 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
             .allowedOrigins(
-                "https://your-frontend-url.onrender.com",
-                "http://localhost:5173" // Keep local development URL
+                "https://cofix-frontend.onrender.com",
+                "http://localhost:5173"
             )
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("*")
