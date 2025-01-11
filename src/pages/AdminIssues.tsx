@@ -2,31 +2,52 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Filter, MapPin, AlertCircle, Edit2 } from 'lucide-react';
 import AdminDashboardLayout from '../components/AdminDashboardLayout';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import IssueDetailsModal from '../components/IssueDetailsModal';
+
+// Import marker icons
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 interface Issue {
   id: string;
   title: string;
   description: string;
-  imageUrl?: string;
+  image?: string;
   location: {
     lat: number;
     lng: number;
   };
   urgency: 'low' | 'medium' | 'high';
-  status: 'pending' | 'in_progress' | 'resolved';
+  status: string;
   createdAt: string;
   category: string;
   userEmail: string;
   benefitType: string;
   schemeName: string;
+  resolutionDescription?: string;
+  resolutionImage?: string;
 }
+
+// Fix Leaflet default marker icon
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+});
 
 export default function AdminIssues() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [resolutionDesc, setResolutionDesc] = useState('');
+  const [resolutionImg, setResolutionImg] = useState<File | null>(null);
 
   useEffect(() => {
     fetchIssues();
@@ -41,7 +62,7 @@ export default function AdminIssues() {
           id: issue.id || issue.postId?.toString(),
           title: issue.title || issue.issueName,
           description: issue.description,
-          imageUrl: issue.image ? `data:image/jpeg;base64,${issue.image}` : undefined,
+          image: issue.image ? `data:image/jpeg;base64,${issue.image}` : undefined,
           location: issue.location,
           urgency: issue.urgency?.toLowerCase() || 'medium',
           status: issue.status?.toLowerCase() || 'pending',
@@ -88,25 +109,54 @@ export default function AdminIssues() {
     }
   };
 
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-
-  const handleResolveIssue = async (issueId: string, resolution: { description: string; image: File | null }) => {
-    setIssues(issues.map(issue => {
-      if (issue.id === issueId) {
-        return {
-          ...issue,
-          status: 'resolved',
-          resolution: {
-            description: resolution.description,
-            imageUrl: resolution.image ? URL.createObjectURL(resolution.image) : '',
-            resolvedAt: new Date().toISOString()
-          }
-        };
+  const handleResolveIssue = async (issueId: number) => {
+    try {
+      const formData = new FormData();
+      formData.append('resolutionDescription', resolutionDesc);
+      if (resolutionImg) {
+        formData.append('resolutionImage', resolutionImg);
       }
-      return issue;
-    }));
-    
-    setSelectedIssue(null);
+
+      const response = await fetch(
+        `http://localhost:8000/api/admin/issues/${issueId}/resolve`,
+        {
+          method: 'PUT',
+          body: formData,
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const updatedIssue = await response.json();
+
+      setIssues(prevIssues => 
+        prevIssues.map(issue => 
+          issue.id === issueId.toString() ? {
+            ...issue,
+            status: 'resolved',
+            resolutionDescription: updatedIssue.resolutionDescription,
+            resolutionImage: updatedIssue.resolutionImage
+          } : issue
+        )
+      );
+      
+      setSelectedIssue(null);
+      setResolutionDesc('');
+      setResolutionImg(null);
+    } catch (error) {
+      console.error('Error resolving issue:', error);
+    }
+  };
+
+  const handleEditIssue = (issue: Issue) => {
+    setSelectedIssue(issue);
   };
 
   const filteredIssues = issues.filter(issue => {
@@ -192,12 +242,132 @@ export default function AdminIssues() {
 
         {/* Issue Details Modal */}
         {selectedIssue && (
-          <IssueDetailsModal
-            issue={selectedIssue}
-            isOpen={!!selectedIssue}
-            onClose={() => setSelectedIssue(null)}
-            onResolve={handleResolveIssue}
-          />
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-2xl font-bold">{selectedIssue.title}</h2>
+                <button 
+                  onClick={() => setSelectedIssue(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Issue Details */}
+                <div>
+                  <h3 className="font-semibold mb-2">Description</h3>
+                  <p className="text-gray-600">{selectedIssue.description}</p>
+                </div>
+
+                {/* Issue Image */}
+                {selectedIssue.image && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Issue Image</h3>
+                    <img 
+                      src={`data:image/jpeg;base64,${selectedIssue.image}`}
+                      alt="Issue" 
+                      className="rounded-lg max-h-64 object-cover w-full"
+                    />
+                  </div>
+                )}
+
+                {/* Location Map */}
+                <div>
+                  <h3 className="font-semibold mb-2">Location</h3>
+                  <div className="h-64 rounded-lg overflow-hidden">
+                    <MapContainer
+                      center={[selectedIssue.location.lat, selectedIssue.location.lng]}
+                      zoom={13}
+                      style={{ height: '100%', width: '100%' }}
+                    >
+                      <TileLayer
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      />
+                      <Marker position={[selectedIssue.location.lat, selectedIssue.location.lng]}>
+                        <Popup>
+                          Issue Location<br/>
+                          {selectedIssue.title}
+                        </Popup>
+                      </Marker>
+                    </MapContainer>
+                  </div>
+                </div>
+
+                {/* Resolution Form */}
+                {selectedIssue.status.toLowerCase() !== 'resolved' && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-4">Resolve Issue</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Resolution Description
+                        </label>
+                        <textarea
+                          className="w-full p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          rows={4}
+                          value={resolutionDesc}
+                          onChange={(e) => setResolutionDesc(e.target.value)}
+                          placeholder="Describe how the issue was resolved..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Resolution Image (Optional)
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setResolutionImg(e.target.files?.[0] || null)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="flex justify-end space-x-3">
+                        <button
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                          onClick={() => setSelectedIssue(null)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                          onClick={() => {
+                            if (resolutionDesc.trim()) {
+                              handleResolveIssue(Number(selectedIssue.id));
+                            } else {
+                              alert('Please provide a resolution description');
+                            }
+                          }}
+                        >
+                          Mark as Resolved
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show Resolution Details if already resolved */}
+                {selectedIssue.status.toLowerCase() === 'resolved' && selectedIssue.resolutionDescription && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-2">Resolution Details</h3>
+                    <p className="text-gray-600">{selectedIssue.resolutionDescription}</p>
+                    {selectedIssue.resolutionImage && (
+                      <div>
+                        <h3 className="font-semibold mb-2">Resolution Image</h3>
+                        <img 
+                          src={`data:image/jpeg;base64,${selectedIssue.resolutionImage}`}
+                          alt="Resolution" 
+                          className="mt-2 rounded-lg max-h-64 object-cover w-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AdminDashboardLayout>

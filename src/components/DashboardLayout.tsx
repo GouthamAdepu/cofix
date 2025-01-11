@@ -98,13 +98,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           })}
         </nav>
         <div className="absolute bottom-0 w-full p-4 border-t">
-          <Link
-            to="/settings"
-            className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-md"
-          >
-            <Settings className="mr-3 h-5 w-5" />
-            Settings
-          </Link>
           <button
             onClick={handleLogout}
             className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-900"

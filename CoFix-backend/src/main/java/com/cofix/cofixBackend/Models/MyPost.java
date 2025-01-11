@@ -61,7 +61,13 @@ public class MyPost{
     private String urgency;
 
     @Column(name = "status", columnDefinition = "varchar(20) default 'PENDING'")
-    private String status;
+    private String status = "PENDING";
+
+    @Column(name = "resolution_description", columnDefinition = "TEXT")
+    private String resolutionDescription;
+
+    @Column(name = "resolution_image", columnDefinition = "TEXT")
+    private String resolutionImage;
 
     public MyPost(String email, BenefitTypes benefitType, String schemeName, String description, String image, String issueName, String activityDescription, Location location, String comment) {
         this.email = email;
@@ -113,5 +119,29 @@ public class MyPost{
             return createDate.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
         }
         return "";
+    }
+
+    public String getResolutionDescription() {
+        return resolutionDescription;
+    }
+
+    public void setResolutionDescription(String resolutionDescription) {
+        this.resolutionDescription = resolutionDescription;
+    }
+
+    public String getResolutionImage() {
+        return resolutionImage;
+    }
+
+    public void setResolutionImage(String resolutionImage) {
+        this.resolutionImage = resolutionImage;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }
