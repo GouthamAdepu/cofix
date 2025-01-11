@@ -76,7 +76,9 @@ CREATE TABLE public.posts (
     latitude double precision,
     longitude double precision,
     comment text,
-    create_date time with time zone
+    create_date TIMESTAMP,
+    urgency VARCHAR(20),
+    status VARCHAR(20) DEFAULT 'PENDING'
 );
 
 
@@ -167,7 +169,7 @@ CREATE TABLE public.users (
     country text,
     gender text,
     address text,
-    create_date time with time zone
+    create_date TIMESTAMP
 );
 
 
@@ -223,10 +225,38 @@ ALTER TABLE ONLY public.posts
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (email);
 
+-- Create admin users table if not exists
+CREATE TABLE IF NOT EXISTS public.admin_users (
+    email VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    admin_level INTEGER NOT NULL CHECK (admin_level BETWEEN 1 AND 4),
+    admin_code VARCHAR(6) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP,
+    issues_resolved INTEGER DEFAULT 0
+);
+
+-- Add new columns to posts table if they don't exist
+DO $$ 
+BEGIN 
+    BEGIN
+        ALTER TABLE public.posts 
+        ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING',
+        ADD COLUMN IF NOT EXISTS urgency VARCHAR(20) DEFAULT 'MEDIUM';
+    EXCEPTION
+        WHEN duplicate_column THEN 
+            RAISE NOTICE 'columns already exist';
+    END;
+END $$;
 
 -- Completed on 2024-07-04 21:46:51
 
 --
 -- PostgreSQL database dump complete
 --
+
+-- Update users table create_date column
+ALTER TABLE public.users 
+ALTER COLUMN create_date TYPE TIMESTAMP;
 

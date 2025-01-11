@@ -32,28 +32,35 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         const formattedIssues = data.map((post: any) => ({
-          id: post.postId.toString(),
-          title: post.issueName,
+          id: post.id || post.postId?.toString() || Math.random().toString(),
+          title: post.title || post.issueName || post.schemeName || 'Untitled',
           description: post.description || '',
-          type: 'community',
+          type: post.benefitType?.toLowerCase() || 'community',
           status: post.status || 'pending',
-          urgency: 'medium',
+          urgency: post.urgency || 'medium',
           location: post.location || { lat: 0, lng: 0 },
-          createdAt: new Date(post.createDate),
-          updatedAt: new Date(post.createDate),
-          userId: post.email
+          createdAt: post.createdAt ? new Date(post.createdAt) : 
+                    post.createDate ? new Date(post.createDate) : new Date(),
+          updatedAt: post.createdAt ? new Date(post.createdAt) : 
+                    post.createDate ? new Date(post.createDate) : new Date(),
+          userId: post.userEmail || post.email,
+          image: post.image,
+          category: post.category || post.comment,
+          benefitType: post.benefitType,
+          schemeName: post.schemeName
         }));
 
+        console.log('Formatted Issues:', formattedIssues);
         setIssues(formattedIssues);
 
         // Calculate stats
-        const pendingCount = formattedIssues.filter(issue => issue.status === 'pending').length;
-        const resolvedCount = formattedIssues.filter(issue => issue.status === 'solved').length;
+        const pendingCount = formattedIssues.filter(issue => issue.status.toLowerCase() === 'pending').length;
+        const resolvedCount = formattedIssues.filter(issue => issue.status.toLowerCase() === 'solved').length;
 
         setStats({
           pending: pendingCount,
           resolved: resolvedCount,
-          notifications: pendingCount // You can modify this based on your notification logic
+          notifications: pendingCount
         });
       }
     } catch (error) {
@@ -218,15 +225,15 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className={`flex-shrink-0 h-2.5 w-2.5 rounded-full ${
-                      issue.status === 'solved' ? 'bg-green-400' : 'bg-yellow-400'
+                      issue.status.toLowerCase() === 'solved' ? 'bg-green-400' : 'bg-yellow-400'
                     }`} />
                     <p className="ml-4 text-sm font-medium text-gray-900">
-                      {issue.title}
+                      {issue.benefitType === 'GOVERNMENT_SCHEME' ? `[Scheme] ${issue.title}` : issue.title}
                     </p>
                   </div>
                   <div className="ml-2 flex-shrink-0 flex">
                     <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      issue.status === 'solved' 
+                      issue.status.toLowerCase() === 'solved' 
                         ? 'bg-green-100 text-green-800' 
                         : 'bg-yellow-100 text-yellow-800'
                     }`}>
@@ -242,7 +249,7 @@ export default function Home() {
                   </div>
                   <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
                     <p>
-                      {new Date(issue.createdAt).toLocaleDateString()}
+                      {issue.createdAt.toLocaleDateString()}
                     </p>
                   </div>
                 </div>

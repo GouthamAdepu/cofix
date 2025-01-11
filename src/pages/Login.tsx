@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import { LogIn, Shield } from 'lucide-react';
 import AuthLayout from '../components/AuthLayout';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -97,13 +97,23 @@ export default function Login() {
           Sign in
         </Button>
 
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <span className="text-sm text-gray-600">
             Don't have an account?{' '}
             <Link to="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
               Sign up
             </Link>
           </span>
+          
+          <div className="pt-2 border-t">
+            <Link 
+              to="/admin/login" 
+              className="text-sm text-gray-600 hover:text-indigo-500 flex items-center justify-center gap-2"
+            >
+              <Shield className="h-4 w-4" />
+              Login as Administrator
+            </Link>
+          </div>
         </div>
       </form>
     </AuthLayout>

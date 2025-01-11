@@ -68,8 +68,6 @@ export default function ReportIssueModal({ isOpen, onClose, onSubmit, initialDat
   });
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   useEffect(() => {
     if (initialData) {
@@ -114,29 +112,6 @@ export default function ReportIssueModal({ isOpen, onClose, onSubmit, initialDat
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...filesArray]);
-    }
-  };
-
-  const handleMultipleImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...newFiles]);
-      
-      const newUrls = newFiles.map(file => URL.createObjectURL(file));
-      setPreviewUrls(prev => [...prev, ...newUrls]);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    URL.revokeObjectURL(previewUrls[index]);
-    setSelectedFiles(files => files.filter((_, i) => i !== index));
-    setPreviewUrls(urls => urls.filter((_, i) => i !== index));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -153,11 +128,10 @@ export default function ReportIssueModal({ isOpen, onClose, onSubmit, initialDat
     formDataToSend.append('latitude', position.lat.toString());
     formDataToSend.append('longitude', position.lng.toString());
     formDataToSend.append('userEmail', localStorage.getItem('userEmail') || '');
-
-    // Add multiple images to form data
-    selectedFiles.forEach(file => {
-      formDataToSend.append('images', file);
-    });
+    
+    if (formData.photo) {
+      formDataToSend.append('image', formData.photo);
+    }
 
     try {
       const response = await fetch('http://localhost:8000/api/issues/report', {
@@ -165,14 +139,16 @@ export default function ReportIssueModal({ isOpen, onClose, onSubmit, initialDat
         body: formDataToSend
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        // Cleanup preview URLs
-        previewUrls.forEach(url => URL.revokeObjectURL(url));
-        onSubmit(formData);
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+        onSubmit(data);
         onClose();
       } else {
-        const error = await response.json();
-        alert(error.message || 'Failed to report issue');
+        alert(data.message || 'Failed to report issue');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -270,46 +246,6 @@ export default function ReportIssueModal({ isOpen, onClose, onSubmit, initialDat
               {previewUrl && (
                 <div className="mt-2">
                   <img src={previewUrl} alt="Preview" className="h-32 w-32 object-cover rounded-md" />
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Upload Images</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleMultipleImages}
-                  className="mt-1 block w-full text-sm text-gray-500
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded-full file:border-0
-                    file:text-sm file:font-semibold
-                    file:bg-indigo-50 file:text-indigo-700
-                    hover:file:bg-indigo-100"
-                />
-              </div>
-
-              {previewUrls.length > 0 && (
-                <div className="mt-4 grid grid-cols-3 gap-4">
-                  {previewUrls.map((url, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={url}
-                        alt={`Preview ${index + 1}`}
-                        className="h-24 w-24 object-cover rounded-lg"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1
-                          opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>

@@ -1,6 +1,5 @@
 package com.cofix.cofixBackend.Models;
 
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -11,31 +10,37 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(schema = "${cofix.schema.name}", name = "users")
-@ToString
-@Getter
-@Setter
-@AllArgsConstructor
+@Data
 @NoArgsConstructor
+@AllArgsConstructor
 public class MyUser {
 
     @Id
-    String email;
-    String name;
-    String password;
+    private String email;
+    private String name;
+    private String password;
     @Column(name = "nick_name")
-    String nickName;
+    private String nickName;
     @Column(name = "phone_number")
-    String phoneNumber;
-    String country;
-    String gender;
-    String address;
-    @Column(name = "create_date")
-    LocalDateTime createDate;
+    private String phoneNumber;
+    private String country;
+    private String gender;
+    private String address;
+    @Column(name = "create_date", columnDefinition = "TIMESTAMP")
+    private LocalDateTime createDate;
 
-    public MyUser(String name, String email, String password){
+    public MyUser(String name, String email, String password) {
         this.name = name;
-        this.email =  email;
+        this.email = email;
         this.password = password;
+        this.createDate = LocalDateTime.now();
+    }
+
+    public String getFormattedDate() {
+        if (createDate != null) {
+            return createDate.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+        }
+        return "";
     }
 
 }

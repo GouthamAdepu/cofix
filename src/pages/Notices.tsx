@@ -15,6 +15,8 @@ interface Notice {
   location?: { lat: number; lng: number };
   description?: string;
   benefitType?: string;
+  image?: string;
+  category?: string;
 }
 
 export default function Notices() {
@@ -45,17 +47,21 @@ export default function Notices() {
         const data = await response.json();
         console.log("Fetched data:", data); // Debug log
         const formattedNotices = data.map((issue: any) => ({
-          id: issue.postId.toString(),
-          title: issue.issueName,
+          id: issue.id || issue.postId?.toString() || Math.random().toString(),
+          title: issue.title || issue.issueName || issue.schemeName || 'Untitled',
           message: issue.description || '',
           type: issue.status === 'solved' ? 'resolution' : 'update',
-          timestamp: new Date(issue.createDate),
+          timestamp: issue.createdAt ? new Date(issue.createdAt) : 
+                    issue.createDate ? new Date(issue.createDate) : new Date(),
           read: false,
-          status: issue.status,
+          status: issue.status || 'pending',
           location: issue.location,
           description: issue.description,
-          benefitType: issue.benefitType || 'COMMUNITY_ISSUE' // Default to community issue if not specified
+          benefitType: issue.benefitType || 'COMMUNITY_ISSUE',
+          image: issue.image,
+          category: issue.category || issue.comment
         }));
+
         console.log("Formatted notices:", formattedNotices); // Debug log
         setNotices(formattedNotices);
       }
@@ -186,7 +192,9 @@ export default function Notices() {
                         )}
                       </div>
                       <div className="ml-4">
-                        <h2 className="text-lg font-medium text-gray-900">{notice.title}</h2>
+                        <h2 className="text-lg font-medium text-gray-900">
+                          {notice.benefitType === 'GOVERNMENT_SCHEME' ? `[Scheme] ${notice.title}` : notice.title}
+                        </h2>
                         <p className="text-sm text-gray-500">{notice.message}</p>
                       </div>
                     </div>

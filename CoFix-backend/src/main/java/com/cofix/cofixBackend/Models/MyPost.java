@@ -10,9 +10,7 @@ import java.util.ArrayList;
 @Entity
 @Table(schema = "${cofix.schema.name}", name = "posts")
 @IdClass(PostPk.class)
-@ToString
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class MyPost{
@@ -37,8 +35,8 @@ public class MyPost{
     @Column(name = "description")
     String description;
 
-    @Column(name = "image")
-    String image;
+    @Column(name = "image", columnDefinition = "TEXT")
+    private String image;
 
     @Column(name = "issue_name")
     String issueName;
@@ -56,19 +54,14 @@ public class MyPost{
     @Column(name = "comment")
     String comment;
 
-    @Column(name = "create_date")
+    @Column(name = "create_date", columnDefinition = "TIMESTAMP")
     LocalDateTime createDate;
 
-    @Column(name = "images")
-    @ElementCollection
-    @CollectionTable(
-        name = "post_images",
-        joinColumns = {
-            @JoinColumn(name = "email"),
-            @JoinColumn(name = "post_id")
-        }
-    )
-    private List<String> images = new ArrayList<>();
+    @Column(name = "urgency", columnDefinition = "varchar(20) default 'MEDIUM'")
+    private String urgency;
+
+    @Column(name = "status", columnDefinition = "varchar(20) default 'PENDING'")
+    private String status;
 
     public MyPost(String email, BenefitTypes benefitType, String schemeName, String description, String image, String issueName, String activityDescription, Location location, String comment) {
         this.email = email;
@@ -80,6 +73,9 @@ public class MyPost{
         this.activityDescription = activityDescription;
         this.location = location;
         this.comment = comment;
+        this.createDate = LocalDateTime.now();
+        this.status = "PENDING";
+        this.urgency = "MEDIUM";
     }
 
     public Location getLocation() {
@@ -112,18 +108,10 @@ public class MyPost{
         location.setLng(longitude);
     }
 
-    public List<String> getImages() {
-        return images;
-    }
-
-    public void setImages(List<String> images) {
-        this.images = images;
-    }
-
-    public void addImage(String image) {
-        if (this.images == null) {
-            this.images = new ArrayList<>();
+    public String getFormattedDate() {
+        if (createDate != null) {
+            return createDate.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
         }
-        this.images.add(image);
+        return "";
     }
 }

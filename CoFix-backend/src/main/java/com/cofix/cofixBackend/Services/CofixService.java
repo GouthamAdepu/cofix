@@ -4,6 +4,8 @@ import com.cofix.cofixBackend.Models.*;
 import com.cofix.cofixBackend.Repos.PostsRepo;
 import com.cofix.cofixBackend.Repos.ReviewsRepo;
 import com.cofix.cofixBackend.Repos.UsersRepo;
+import com.cofix.cofixBackend.Repos.AdminRepository;
+import com.cofix.cofixBackend.Repos.CommunityIssueRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -24,6 +26,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.TreeMap;
 
 @Service
 @Getter
@@ -42,6 +48,10 @@ public class CofixService implements Ordered {
     String adminEmail;
     @Autowired
     private EmailSenderService emailSenderService;
+    @Autowired
+    private AdminRepository adminRepository;
+    @Autowired
+    private CommunityIssueRepository communityIssueRepository;
 
     public CofixService(){
     }
@@ -51,14 +61,17 @@ public class CofixService implements Ordered {
         try {
             if (postsRepo.findByEmailAndBenefitType("test@user.com", BenefitTypes.GOVERNMENT_SCHEME).isEmpty()) {
                 log.info("Adding test@user Government Schemes data");
-                MyPost defaultPost = new MyPost();
-                defaultPost.setEmail("test@user.com");
-                defaultPost.setBenefitType(BenefitTypes.GOVERNMENT_SCHEME);
-                defaultPost.setSchemeName("Rythu Bandhu");
-                defaultPost.setDescription("Rythu Bandhu description");
-                defaultPost.setComment("Rythu Bandhu Description");
-                defaultPost.setCreateDate(LocalDateTime.now());
-                defaultPost.setLocation(new Location(17.455598622434977, 78.66648576707394));
+                MyPost defaultPost = new MyPost(
+                    "test@user.com",
+                    BenefitTypes.GOVERNMENT_SCHEME,
+                    "Rythu Bandhu",
+                    "Rythu Bandhu description",
+                    null,
+                    null,
+                    null,
+                    new Location(17.455598622434977, 78.66648576707394),
+                    "Rythu Bandhu Description"
+                );
                 
                 postsRepo.save(defaultPost);
             }
@@ -73,9 +86,16 @@ public class CofixService implements Ordered {
         return 2;
     }
 
-    public MyPost addIssuePost(MyPost myPost){
-        myPost.setCreateDate(LocalDateTime.now());
-        return postsRepo.save(myPost);
+    public MyPost addIssuePost(MyPost post) {
+        try {
+            post.setCreateDate(LocalDateTime.now());
+            post.setStatus(post.getStatus() == null ? "PENDING" : post.getStatus());
+            post.setUrgency(post.getUrgency() == null ? "MEDIUM" : post.getUrgency());
+            return postsRepo.save(post);
+        } catch (Exception e) {
+            log.error("Error adding issue post: ", e);
+            return null;
+        }
     }
     public MyPost addSchemePost(MyPost myPost){
         myPost.setCreateDate(LocalDateTime.now());
@@ -89,9 +109,17 @@ public class CofixService implements Ordered {
     }
 
     public List<MyPost> getProfileIssues(String email) {
-        log.info("Show all issues for email: " + email);
-        List<MyPost> posts = postsRepo.findByEmailAndBenefitType(email,BenefitTypes.COMMUNITY_ISSUE);
-        return posts;
+        try {
+            List<MyPost> issues = postsRepo.findByEmail(email);
+            issues.forEach(issue -> {
+                if (issue.getStatus() == null) issue.setStatus("PENDING");
+                if (issue.getUrgency() == null) issue.setUrgency("MEDIUM");
+            });
+            return issues;
+        } catch (Exception e) {
+            log.error("Error fetching profile issues: ", e);
+            return new ArrayList<>();
+        }
     }
 
     public List<MyPost> getProfileSchemes(String email) {
@@ -170,5 +198,91 @@ public void sendEmail(String toEmail,String subject,String body) throws Messagin
                 + "</html>";
 
         return emailBody;
+    }
+
+    @Transactional(readOnly = true)
+    public List<MyPost> getAllIssues() {
+        try {
+            List<MyPost> issues = postsRepo.findAll();
+            issues.forEach(issue -> {
+                if (issue.getStatus() == null) issue.setStatus("PENDING");
+                if (issue.getUrgency() == null) issue.setUrgency("MEDIUM");
+                if (issue.getBenefitType() == null) {
+                    issue.setBenefitType(BenefitTypes.COMMUNITY_ISSUE);
+                }
+            });
+            return issues;
+        } catch (Exception e) {
+            log.error("Error fetching all issues: ", e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Transactional
+    public void incrementAdminIssuesResolved(String adminEmail) {
+        try {
+            Optional<AdminUser> adminOpt = adminRepository.findById(adminEmail);
+            if (adminOpt.isPresent()) {
+                AdminUser admin = adminOpt.get();
+                admin.setIssuesResolved(admin.getIssuesResolved() + 1);
+                adminRepository.save(admin);
+            }
+        } catch (Exception e) {
+            log.error("Error incrementing admin issues resolved: ", e);
+        }
+    }
+
+    public Optional<AdminUser> getAdminByEmail(String email) {
+        try {
+            return adminRepository.findById(email);
+        } catch (Exception e) {
+            log.error("Error fetching admin by email: ", e);
+            return Optional.empty();
+        }
+    }
+
+    public AdminUser saveAdmin(AdminUser admin) {
+        try {
+            return adminRepository.save(admin);
+        } catch (Exception e) {
+            log.error("Error saving admin: ", e);
+            return null;
+        }
+    }
+
+    public CommunityIssue saveIssue(CommunityIssue issue) {
+        return communityIssueRepository.save(issue);
+    }
+
+    public MyPost updatePost(MyPost post) {
+        try {
+            return postsRepo.save(post);
+        } catch (Exception e) {
+            log.error("Error updating post: ", e);
+            return null;
+        }
+    }
+
+    public Map<String, Object> getAdminDashboardStats(String adminEmail) {
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            List<MyPost> allIssues = getAllIssues();
+            Optional<AdminUser> admin = getAdminByEmail(adminEmail);
+
+            stats.put("totalIssues", allIssues.size());
+            stats.put("pendingIssues", allIssues.stream()
+                .filter(i -> "PENDING".equalsIgnoreCase(i.getStatus()))
+                .count());
+            stats.put("resolvedIssues", allIssues.stream()
+                .filter(i -> "SOLVED".equalsIgnoreCase(i.getStatus()))
+                .count());
+            stats.put("adminResolvedIssues", 
+                admin.map(AdminUser::getIssuesResolved).orElse(0));
+
+            return stats;
+        } catch (Exception e) {
+            log.error("Error getting admin dashboard stats: ", e);
+            return new HashMap<>();
+        }
     }
 }

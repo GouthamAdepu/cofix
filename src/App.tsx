@@ -12,6 +12,11 @@ import Profile from './pages/Profile';
 import Maps from './pages/Maps';
 import ProtectedRoute from './components/ProtectedRoute';
 import SessionManager from './components/SessionManager';
+import AdminLogin from './pages/AdminLogin';
+import AdminSignup from './pages/AdminSignup';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminIssues from './pages/AdminIssues';
+import AdminProfile from './pages/AdminProfile';
 
 function App() {
   return (
@@ -59,6 +64,11 @@ function App() {
             <Profile />
           </ProtectedRoute>
         } />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/signup" element={<AdminSignup />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/issues" element={<AdminIssues />} />
+        <Route path="/admin/profile" element={<AdminProfile />} />
       </Routes>
     </Router>
   );

@@ -6,27 +6,42 @@ import com.cofix.cofixBackend.Models.MyReview;
 import com.cofix.cofixBackend.Models.MyUser;
 import com.cofix.cofixBackend.Models.CommunityIssue;
 import com.cofix.cofixBackend.Models.Location;
+import com.cofix.cofixBackend.Models.AdminUser;
+import com.cofix.cofixBackend.Models.PostPk;
 import com.cofix.cofixBackend.Services.AuthService;
 import com.cofix.cofixBackend.Services.CofixService;
 import com.cofix.cofixBackend.Services.EmailSenderService;
 import jakarta.mail.MessagingException;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.Base64;
+import java.util.stream.Collectors;
+import java.util.TreeMap;
 
 @RestController
 @Slf4j
 @CrossOrigin(origins = "http://localhost:5173", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 @RequestMapping("/api")
 public class CofixLoginController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CofixLoginController.class);
 
     @Autowired
     AuthService authService;
@@ -37,12 +52,15 @@ public class CofixLoginController {
     @Value("${admin-email}")
     String adminEmail;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     public CofixLoginController(){
     }
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, String>> login(@RequestParam String email, @RequestParam String password) {
-        log.info("Login attempt for email: " + email);
+        logger.info("Login attempt for email: " + email);
         
         // Add input validation
         if (email == null || password == null || 
@@ -51,13 +69,13 @@ public class CofixLoginController {
         }
 
         if (authService.loginUser(email, password)) {
-            log.info("User authenticated successfully: " + email);
+            logger.info("User authenticated successfully: " + email);
             Map<String, String> response = new HashMap<>();
             response.put("message", "Login successful");
             response.put("email", email);
             return ResponseEntity.ok(response);
         } else {
-            log.info("Authentication failed for: " + email);
+            logger.info("Authentication failed for: " + email);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Collections.singletonMap("message", "Invalid email or password"));
         }
@@ -65,7 +83,7 @@ public class CofixLoginController {
 
     @PostMapping("/signup")
     public ResponseEntity<Map<String, String>> signUp(@RequestParam String name, @RequestParam String email, @RequestParam String password) {
-        log.info("Signup information has been received successfully:");
+        logger.info("Signup information has been received successfully:");
         
         // Add input validation
         if (name == null || email == null || password == null || 
@@ -75,13 +93,13 @@ public class CofixLoginController {
 
         Optional<MyUser> user = cofixService.getUsersRepo().findById(email);
         if(user.isPresent()){
-            log.error("Cannot create user, email already exists: " + email);
+            logger.error("Cannot create user, email already exists: " + email);
             return ResponseEntity.badRequest().body(Collections.singletonMap("message", "Email already registered"));
         } else {
             MyUser newUser = new MyUser(name, email, password);
             newUser.setCreateDate(LocalDateTime.now());
             authService.registerUser(newUser);
-            log.info("New User added: " + email);
+            logger.info("New User added: " + email);
             Map<String, String> response = new HashMap<>();
             response.put("message", "Sign-up successful");
             response.put("email", email);
@@ -94,32 +112,49 @@ public class CofixLoginController {
 
     @GetMapping("/hello")
     public void sendMail() throws MessagingException {
-        cofixService.sendNotificationEmail(new MyPost("test@user.com",null,BenefitTypes.GOVERNMENT_SCHEME,"Rythu Bandhu","Rythu Bandhu description",null,null,null, null, "Rythu Bandhu Description", LocalDateTime.now()),adminEmail);
+        MyPost post = new MyPost(
+            "test@user.com",                  // email
+            BenefitTypes.GOVERNMENT_SCHEME,   // benefitType
+            "Rythu Bandhu",                   // schemeName
+            "Rythu Bandhu description",       // description
+            null,                            // image
+            "Rythu Bandhu",                  // issueName
+            null,                            // activityDescription
+            new Location(17.455598622434977, 78.66648576707394), // location
+            "Rythu Bandhu Description"       // comment
+        );
+        
+        cofixService.sendNotificationEmail(post, adminEmail);
     }
 
     @GetMapping("/profile")
-    public ResponseEntity<MyUser> getProfileData(String email) {
-        log.info("Profile API: Sending profile information with email:" + email);
-        Optional<MyUser> user = cofixService.getUsersRepo().findById(email);
-        if(user.isPresent()){
-            log.info("User found :" + user.get());
-            return ResponseEntity.ok(user.get());
-        } else{
-            log.info("User not found");
-            return ResponseEntity.notFound().build();
+    public ResponseEntity<MyUser> getProfileData(@RequestParam String email) {
+        logger.info("Profile API: Fetching profile information for email: " + email);
+        try {
+            Optional<MyUser> user = cofixService.getUsersRepo().findById(email);
+            if (user.isPresent()) {
+                logger.info("User found: " + user.get());
+                return ResponseEntity.ok(user.get());
+            } else {
+                logger.info("User not found");
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching profile: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
 //    @PostMapping("/profile/edit")
 //    public ResponseEntity<MyUser> setProfileData(String email) {
-//        log.info("Profile API: Sending profile information with email:" + email);
+//        logger.info("Profile API: Sending profile information with email:" + email);
 //        Optional<MyUser> user = cofixService.getUsersRepo().findById(email);
 //        if(user.isPresent()){
-//            log.info("User found :" + user);
-//            log.info("Updating info : " + user.get());
+//            logger.info("User found :" + user);
+//            logger.info("Updating info : " + user.get());
 //            return ResponseEntity.ok(user.get());
 //        } else{
-//            log.info("User not found");1eb6
+//            logger.info("User not found");1eb6
 //            return ResponseEntity.notFound().build();
 //        }
 //    }
@@ -127,16 +162,27 @@ public class CofixLoginController {
     @PostMapping("/profile/update")
     @CrossOrigin(origins = "http://localhost:5173")
     public ResponseEntity<MyUser> updateProfile(@RequestBody MyUser updatedProfile) {
-        log.info("Updating profile for user:" + updatedProfile.getEmail());
-        Optional<MyUser> profile = cofixService.getUsersRepo().findById(updatedProfile.getEmail());
-        if(profile.isPresent()) {
-            log.info("Old profile for user: " + profile.get());
-            log.info("Updated profile = " + updatedProfile);
-            updatedProfile.setPassword(profile.get().getPassword());
-            cofixService.getUsersRepo().save(updatedProfile);
-            return ResponseEntity.ok(updatedProfile);
-        } else {
-            return ResponseEntity.notFound().build();
+        logger.info("Updating profile for user: " + updatedProfile.getEmail());
+        try {
+            Optional<MyUser> existingProfile = cofixService.getUsersRepo().findById(updatedProfile.getEmail());
+            if (existingProfile.isPresent()) {
+                MyUser currentProfile = existingProfile.get();
+                
+                // Preserve the password and creation date
+                updatedProfile.setPassword(currentProfile.getPassword());
+                updatedProfile.setCreateDate(currentProfile.getCreateDate());
+                
+                // Update other fields
+                MyUser savedProfile = cofixService.getUsersRepo().save(updatedProfile);
+                logger.info("Profile updated successfully: " + savedProfile);
+                return ResponseEntity.ok(savedProfile);
+            } else {
+                logger.error("Profile not found for email: " + updatedProfile.getEmail());
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            logger.error("Error updating profile: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -145,7 +191,7 @@ public class CofixLoginController {
     public ResponseEntity<List<MyPost>> showAllPosts(String email) {
         List<MyPost> posts = cofixService.getProfilePosts(email);
         if(!posts.isEmpty()) {
-            log.info("Get All posts for user: " + posts);
+            logger.info("Get All posts for user: " + posts);
             return new ResponseEntity<>(posts, HttpStatus.OK);
         } else {
             return ResponseEntity.internalServerError().build();
@@ -153,13 +199,41 @@ public class CofixLoginController {
     }
 
     @GetMapping("/issues")
-    public ResponseEntity<List<MyPost>> getAllCommunityIssues(String benefitType) {
-        List<MyPost> allCommunityIssues = cofixService.getPostsRepo().findByBenefitType(BenefitTypes.valueOf(benefitType));
-        if(!allCommunityIssues.isEmpty()) {
-            log.debug("Get All Community: " + allCommunityIssues);
-            return new ResponseEntity<>(allCommunityIssues, HttpStatus.OK);
-        } else {
-            return ResponseEntity.internalServerError().build();
+    public ResponseEntity<List<Map<String, Object>>> getAllCommunityIssues(String benefitType) {
+        try {
+            List<MyPost> allPosts;
+            if (benefitType != null) {
+                // If benefitType is specified, get specific type
+                allPosts = cofixService.getPostsRepo().findByBenefitType(BenefitTypes.valueOf(benefitType));
+            } else {
+                // If no benefitType specified, get all posts
+                allPosts = cofixService.getPostsRepo().findAll();
+            }
+
+            if (!allPosts.isEmpty()) {
+                List<Map<String, Object>> enrichedIssues = allPosts.stream().map(issue -> {
+                    Map<String, Object> enrichedIssue = new HashMap<>();
+                    enrichedIssue.put("id", issue.getPostId());
+                    enrichedIssue.put("title", issue.getIssueName());
+                    enrichedIssue.put("description", issue.getDescription());
+                    enrichedIssue.put("location", issue.getLocation());
+                    enrichedIssue.put("image", issue.getImage());
+                    enrichedIssue.put("status", issue.getStatus());
+                    enrichedIssue.put("urgency", issue.getUrgency());
+                    enrichedIssue.put("userEmail", issue.getEmail());
+                    enrichedIssue.put("createdAt", issue.getFormattedDate());
+                    enrichedIssue.put("category", issue.getComment());
+                    enrichedIssue.put("benefitType", issue.getBenefitType());
+                    enrichedIssue.put("schemeName", issue.getSchemeName());
+                    return enrichedIssue;
+                }).collect(Collectors.toList());
+                
+                return new ResponseEntity<>(enrichedIssues, HttpStatus.OK);
+            }
+            return ResponseEntity.ok(new ArrayList<>());
+        } catch (Exception e) {
+            logger.error("Error fetching issues: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -185,7 +259,7 @@ public class CofixLoginController {
 
             return ResponseEntity.ok(allPosts);
         } catch (Exception e) {
-            log.error("Error fetching issues: ", e);
+            logger.error("Error fetching issues: ", e);
             return ResponseEntity.ok(new ArrayList<>());
         }
     }
@@ -195,7 +269,7 @@ public class CofixLoginController {
         List<MyPost> issues = cofixService.getProfileIssues(email);
         if (!issues.isEmpty()) {
             issues.forEach(issue -> issue.setBenefitType(BenefitTypes.COMMUNITY_ISSUE));
-            log.debug("Get All issues for user: " + issues);
+            logger.debug("Get All issues for user: " + issues);
             return new ResponseEntity<>(issues, HttpStatus.OK);
         } else {
             return ResponseEntity.ok(new ArrayList<>());
@@ -209,7 +283,7 @@ public class CofixLoginController {
         if (!schemes.isEmpty()) {
             // Ensure benefitType is set for schemes
             schemes.forEach(scheme -> scheme.setBenefitType(BenefitTypes.GOVERNMENT_SCHEME));
-            log.debug("Get All schemes for user: " + schemes);
+            logger.debug("Get All schemes for user: " + schemes);
             return new ResponseEntity<>(schemes, HttpStatus.OK);
         } else {
             return ResponseEntity.ok(new ArrayList<>());
@@ -219,21 +293,33 @@ public class CofixLoginController {
 
     @CrossOrigin
     @PostMapping("/profile/issues/add")
-    public ResponseEntity<MyPost> addIssue(@RequestBody MyPost issuePost) throws MessagingException {
-        // Save the issue to the database or in-memory store
-        // For now, just print it to the console
-        log.info("Issue to be added :" + issuePost);
+    public ResponseEntity<MyPost> addIssue(@RequestBody MyPost issuePost) {
+        try {
+            // Set default values if not provided
+            if (issuePost.getUrgency() == null) {
+                issuePost.setUrgency("MEDIUM");
+            }
+            if (issuePost.getStatus() == null) {
+                issuePost.setStatus("PENDING");
+            }
+            if (issuePost.getBenefitType() == null) {
+                issuePost.setBenefitType(BenefitTypes.COMMUNITY_ISSUE);
+            }
 
-        MyPost addedPost = cofixService.addIssuePost(issuePost);
-        if(addedPost!=null){
-            log.info("Successfully added issue post");
-            // cofixService.sendNotificationEmail(issuePost,adminEmail);
-            cofixService.sendNotificationEmail(issuePost,issuePost.getEmail());
-        } else {
-            log.error("Failed to add issue post");
+            MyPost savedPost = cofixService.addIssuePost(issuePost);
+            if (savedPost != null) {
+                try {
+                    cofixService.sendNotificationEmail(savedPost, savedPost.getEmail());
+                } catch (MessagingException e) {
+                    logger.error("Failed to send notification email", e);
+                }
+                return ResponseEntity.ok(savedPost);
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception e) {
+            logger.error("Error adding issue: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        log.info("New community post added for user: "+ addedPost);
-        return new ResponseEntity<>(addedPost, HttpStatus.CREATED);
     }
 
 //    @CrossOrigin
@@ -241,7 +327,7 @@ public class CofixLoginController {
 //    public ResponseEntity<String> deleteIssue(@PathVariable Long postId) {
 //        // Save the issue to the database or in-memory store
 //        // For now, just print it to the console
-//        log.info("IssueId to be deleted :" + postId);
+//        logger.info("IssueId to be deleted :" + postId);
 //
 //        try {
 //            cofixService.deletePost(postId);
@@ -253,7 +339,7 @@ public class CofixLoginController {
     @CrossOrigin
     @DeleteMapping("/profile/issues/{postId}")
     public ResponseEntity<Void> deleteIssues(@PathVariable Long postId) {
-        log.info("IssueId to be deleted :" + postId);
+        logger.info("IssueId to be deleted :" + postId);
         cofixService.deletePost(postId);
         return ResponseEntity.noContent().build();
     }
@@ -262,14 +348,14 @@ public class CofixLoginController {
     @PostMapping("/profile/schemes/add")
     public ResponseEntity<MyPost> addScheme(@RequestBody MyPost schemePost) {
 
-        log.info("Scheme to be added :" + schemePost);
+        logger.info("Scheme to be added :" + schemePost);
         MyPost addedPost = cofixService.addSchemePost(schemePost);
         if(addedPost!=null){
-            log.info("Successfully added scheme post");
+            logger.info("Successfully added scheme post");
         } else {
-            log.error("Failed to add scheme post");
+            logger.error("Failed to add scheme post");
         }
-        log.info("New community post added for user: "+ addedPost);
+        logger.info("New community post added for user: "+ addedPost);
         return new ResponseEntity<>(addedPost, HttpStatus.CREATED);
     }
 
@@ -279,57 +365,71 @@ public class CofixLoginController {
     public ResponseEntity<MyReview> addIssue(@RequestBody MyReview review) {
         // Save the issue to the database or in-memory store
         // For now, just print it to the console
-        log.info("review to be added :" + review);
+        logger.info("review to be added :" + review);
 
         MyReview finalReview = cofixService.addReview(review);
         if(finalReview!=null){
-            log.info("Successfully added review");
+            logger.info("Successfully added review");
         } else {
-            log.error("Failed to add issue post");
+            logger.error("Failed to add issue post");
         }
-        log.info("New community post added for user: "+ finalReview);
+        logger.info("New community post added for user: "+ finalReview);
         return new ResponseEntity<>(finalReview, HttpStatus.CREATED);
     }
 
     @PostMapping("/issues/report")
-    @CrossOrigin(origins = "http://localhost:5173")
-    public ResponseEntity<Map<String, String>> reportIssue(
-        @RequestParam String title,
-        @RequestParam String description,
-        @RequestParam String category,
-        @RequestParam String urgency,
-        @RequestParam Double latitude,
-        @RequestParam Double longitude,
-        @RequestParam(required = false) MultipartFile photo,
-        @RequestParam String userEmail
-    ) {
+    public ResponseEntity<?> reportIssue(@RequestParam String title,
+                                       @RequestParam String description,
+                                       @RequestParam String category,
+                                       @RequestParam String urgency,
+                                       @RequestParam Double latitude,
+                                       @RequestParam Double longitude,
+                                       @RequestParam String userEmail,
+                                       @RequestParam(required = false) MultipartFile image) {
         try {
-            CommunityIssue issue = new CommunityIssue();
-            issue.setTitle(title);
-            issue.setDescription(description);
-            issue.setCategory(category);
-            issue.setUrgency(urgency);
-            issue.setStatus("pending");
-            issue.setLatitude(latitude);
-            issue.setLongitude(longitude);
-            issue.setUserEmail(userEmail);
-            issue.setCreatedAt(LocalDateTime.now());
-
-            // Handle photo upload if present
-            if (photo != null && !photo.isEmpty()) {
-                String fileName = UUID.randomUUID().toString() + "_" + photo.getOriginalFilename();
-                String filePath = "uploads/" + fileName;
-                // Save file to server
-                photo.transferTo(new File(filePath));
-                issue.setPhotoUrl(filePath);
+            // Validate input
+            if (title == null || description == null || userEmail == null ||
+                title.trim().isEmpty() || description.trim().isEmpty() || userEmail.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Collections.singletonMap("message", "Required fields are missing"));
             }
 
-            cofixService.saveIssue(issue);
-            
-            return ResponseEntity.ok(Collections.singletonMap("message", "Issue reported successfully"));
+            String base64Image = null;
+            if (image != null && !image.isEmpty()) {
+                base64Image = saveImage(image); // This will now store as Base64
+            }
+
+            MyPost post = new MyPost(
+                userEmail,
+                BenefitTypes.COMMUNITY_ISSUE,
+                title,
+                description,
+                base64Image,  // Store Base64 string
+                title,
+                null,
+                new Location(latitude, longitude),
+                category
+            );
+            post.setUrgency(urgency);
+            post.setStatus("PENDING");
+
+            MyPost savedPost = cofixService.addIssuePost(post);
+            return ResponseEntity.ok(savedPost);
         } catch (Exception e) {
-            log.error("Error reporting issue:", e);
-            return ResponseEntity.badRequest().body(Collections.singletonMap("message", "Failed to report issue"));
+            logger.error("Error reporting issue:", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Collections.singletonMap("message", "Failed to report issue: " + e.getMessage()));
+        }
+    }
+
+    private String saveImage(MultipartFile file) {
+        try {
+            // Convert image to Base64 string
+            byte[] imageBytes = file.getBytes();
+            return Base64.getEncoder().encodeToString(imageBytes);
+        } catch (IOException e) {
+            logger.error("Error converting image to Base64: ", e);
+            throw new RuntimeException("Failed to process image", e);
         }
     }
 
@@ -355,27 +455,14 @@ public class CofixLoginController {
                     post.setLocation(new Location(post.getLatitude(), post.getLongitude()));
                 });
                 
-                log.info("Found {} total issues", allPosts.size());
+                logger.info("Found {} total issues", allPosts.size());
                 return ResponseEntity.ok(allPosts);
             }
             
             return ResponseEntity.ok(new ArrayList<>());
         } catch (Exception e) {
-            log.error("Error fetching all issues: ", e);
+            logger.error("Error fetching all issues: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ArrayList<>());
-        }
-    }
-
-    @GetMapping("/profile/issues")
-    public ResponseEntity<List<MyPost>> showAllCommunityIssues(String email) {
-        List<MyPost> issues = cofixService.getProfileIssues(email);
-        if (!issues.isEmpty()) {
-            // Ensure benefitType is set for community issues
-            issues.forEach(issue -> issue.setBenefitType(BenefitTypes.COMMUNITY_ISSUE));
-            log.debug("Get All issues for user: " + issues);
-            return new ResponseEntity<>(issues, HttpStatus.OK);
-        } else {
-            return ResponseEntity.ok(new ArrayList<>());
         }
     }
 
@@ -408,5 +495,382 @@ public class CofixLoginController {
         Map<String, String> response = new HashMap<>();
         response.put("message", "Logged out successfully");
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/admin/login")
+    public ResponseEntity<Map<String, String>> adminLogin(
+        @RequestParam String email, 
+        @RequestParam String password
+    ) {
+        logger.info("Admin login attempt for email: " + email);
+        
+        if (email == null || password == null || 
+            email.trim().isEmpty() || password.trim().isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Collections.singletonMap("message", "Email and password are required"));
+        }
+
+        Optional<AdminUser> adminOpt = cofixService.getAdminByEmail(email);
+        
+        if (adminOpt.isPresent() && passwordEncoder.matches(password, adminOpt.get().getPassword())) {
+            AdminUser admin = adminOpt.get();
+            admin.setLastLogin(LocalDateTime.now());
+            cofixService.saveAdmin(admin);
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Login successful");
+            response.put("email", email);
+            response.put("adminLevel", admin.getAdminLevel().toString());
+            return ResponseEntity.ok(response);
+        }
+        
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(Collections.singletonMap("message", "Invalid credentials"));
+    }
+
+    @PostMapping("/admin/signup")
+    public ResponseEntity<Map<String, String>> adminSignup(
+        @RequestParam String name,
+        @RequestParam String email,
+        @RequestParam String password,
+        @RequestParam Integer adminLevel,
+        @RequestParam String adminCode
+    ) {
+        logger.info("Admin signup attempt for email: " + email);
+        
+        // Validate input
+        if (name == null || email == null || password == null || adminCode == null ||
+            name.trim().isEmpty() || email.trim().isEmpty() || 
+            password.trim().isEmpty() || adminCode.trim().isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Collections.singletonMap("message", "All fields are required"));
+        }
+        
+        // Validate admin level
+        if (adminLevel < 1 || adminLevel > 4) {
+            return ResponseEntity.badRequest()
+                .body(Collections.singletonMap("message", "Invalid admin level"));
+        }
+        
+        // Validate admin code format
+        if (!adminCode.matches("^[0-9]{6}$")) {
+            return ResponseEntity.badRequest()
+                .body(Collections.singletonMap("message", "Invalid admin code format"));
+        }
+
+        Optional<AdminUser> existingAdmin = cofixService.getAdminByEmail(email);
+        if (existingAdmin.isPresent()) {
+            return ResponseEntity.badRequest()
+                .body(Collections.singletonMap("message", "Email already registered"));
+        }
+
+        AdminUser admin = new AdminUser();
+        admin.setName(name);
+        admin.setEmail(email);
+        admin.setPassword(passwordEncoder.encode(password));
+        admin.setAdminLevel(adminLevel);
+        admin.setAdminCode(adminCode);
+        admin.setCreatedAt(LocalDateTime.now());
+        admin.setIssuesResolved(0);
+        
+        cofixService.saveAdmin(admin);
+        
+        return ResponseEntity.ok(Collections.singletonMap("message", "Admin registered successfully"));
+    }
+
+    @PostMapping("/posts")
+    public ResponseEntity<MyPost> createPost(@RequestParam String email,
+                                           @RequestParam BenefitTypes benefitType,
+                                           @RequestParam String title,
+                                           @RequestParam String description,
+                                           @RequestParam(required = false) String image,
+                                           @RequestParam Double latitude,
+                                           @RequestParam Double longitude,
+                                           @RequestParam String comment) {
+        try {
+            MyPost post = new MyPost(
+                email,
+                benefitType,
+                title,  // schemeName
+                description,
+                image,
+                title,  // issueName
+                null,   // activityDescription
+                new Location(latitude, longitude),
+                comment
+            );
+            
+            MyPost savedPost = cofixService.addIssuePost(post);
+            return ResponseEntity.ok(savedPost);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/profile/issues")
+    public ResponseEntity<List<Map<String, Object>>> getProfileIssues(@RequestParam String email) {
+        try {
+            // Get both community issues and government schemes
+            List<MyPost> allPosts = cofixService.getPostsRepo().findByEmail(email);
+            
+            if (allPosts != null && !allPosts.isEmpty()) {
+                List<Map<String, Object>> enrichedIssues = allPosts.stream().map(issue -> {
+                    Map<String, Object> enrichedIssue = new HashMap<>();
+                    enrichedIssue.put("id", issue.getPostId());
+                    enrichedIssue.put("title", issue.getIssueName());
+                    enrichedIssue.put("description", issue.getDescription());
+                    enrichedIssue.put("location", issue.getLocation());
+                    enrichedIssue.put("image", issue.getImage());
+                    enrichedIssue.put("status", issue.getStatus());
+                    enrichedIssue.put("urgency", issue.getUrgency());
+                    enrichedIssue.put("createdAt", issue.getFormattedDate());
+                    enrichedIssue.put("category", issue.getComment());
+                    enrichedIssue.put("benefitType", issue.getBenefitType());
+                    enrichedIssue.put("schemeName", issue.getSchemeName());
+                    return enrichedIssue;
+                }).collect(Collectors.toList());
+                
+                return ResponseEntity.ok(enrichedIssues);
+            }
+            return ResponseEntity.ok(new ArrayList<>());
+        } catch (Exception e) {
+            logger.error("Error fetching profile issues: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Add this endpoint for updating issues
+    @PutMapping("/profile/issues/update/{postId}")
+    public ResponseEntity<MyPost> updateIssue(@PathVariable Long postId, @RequestBody MyPost updatedPost) {
+        try {
+            // Find the existing post
+            Optional<MyPost> existingPost = cofixService.getPostsRepo().findById(new PostPk(updatedPost.getEmail(), postId));
+            
+            if (existingPost.isPresent()) {
+                MyPost post = existingPost.get();
+                
+                // Update the fields
+                post.setDescription(updatedPost.getDescription());
+                post.setIssueName(updatedPost.getIssueName());
+                post.setSchemeName(updatedPost.getSchemeName());
+                post.setComment(updatedPost.getComment());
+                post.setUrgency(updatedPost.getUrgency());
+                post.setStatus(updatedPost.getStatus());
+                
+                if (updatedPost.getLocation() != null) {
+                    post.setLocation(updatedPost.getLocation());
+                }
+                
+                if (updatedPost.getImage() != null) {
+                    post.setImage(updatedPost.getImage());
+                }
+
+                // Save the updated post
+                MyPost savedPost = cofixService.getPostsRepo().save(post);
+                return ResponseEntity.ok(savedPost);
+            }
+            
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error updating issue: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/admin/issues")
+    @CrossOrigin(origins = "http://localhost:5173")
+    public ResponseEntity<List<Map<String, Object>>> getAllIssuesForAdmin() {
+        try {
+            List<MyPost> allPosts = cofixService.getPostsRepo().findAll();
+            
+            if (!allPosts.isEmpty()) {
+                List<Map<String, Object>> enrichedIssues = allPosts.stream().map(issue -> {
+                    Map<String, Object> enrichedIssue = new HashMap<>();
+                    enrichedIssue.put("id", issue.getPostId());
+                    enrichedIssue.put("title", issue.getIssueName());
+                    enrichedIssue.put("description", issue.getDescription());
+                    enrichedIssue.put("location", issue.getLocation());
+                    enrichedIssue.put("image", issue.getImage());
+                    enrichedIssue.put("status", issue.getStatus());
+                    enrichedIssue.put("urgency", issue.getUrgency());
+                    enrichedIssue.put("userEmail", issue.getEmail());
+                    enrichedIssue.put("createdAt", issue.getFormattedDate());
+                    enrichedIssue.put("category", issue.getComment());
+                    enrichedIssue.put("benefitType", issue.getBenefitType());
+                    enrichedIssue.put("schemeName", issue.getSchemeName());
+                    return enrichedIssue;
+                }).collect(Collectors.toList());
+                
+                return ResponseEntity.ok(enrichedIssues);
+            }
+            return ResponseEntity.ok(new ArrayList<>());
+        } catch (Exception e) {
+            logger.error("Error fetching admin issues: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PutMapping("/admin/profile/update")
+    @CrossOrigin(origins = "http://localhost:5173")
+    public ResponseEntity<AdminUser> updateAdminProfile(@RequestBody AdminUser updatedAdmin) {
+        try {
+            Optional<AdminUser> existingAdmin = cofixService.getAdminByEmail(updatedAdmin.getEmail());
+            if (existingAdmin.isPresent()) {
+                AdminUser currentAdmin = existingAdmin.get();
+                
+                // Preserve sensitive fields
+                updatedAdmin.setPassword(currentAdmin.getPassword());
+                updatedAdmin.setCreatedAt(currentAdmin.getCreatedAt());
+                updatedAdmin.setAdminCode(currentAdmin.getAdminCode());
+                updatedAdmin.setIssuesResolved(currentAdmin.getIssuesResolved());
+                
+                AdminUser savedAdmin = cofixService.saveAdmin(updatedAdmin);
+                return ResponseEntity.ok(savedAdmin);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error updating admin profile: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PutMapping("/admin/issues/update/{postId}")
+    @CrossOrigin(origins = "http://localhost:5173")
+    public ResponseEntity<MyPost> updateIssueStatus(
+        @PathVariable Long postId,
+        @RequestParam String status,
+        @RequestParam String adminEmail
+    ) {
+        try {
+            Optional<MyPost> postOpt = cofixService.getPostsRepo().findByPostId(postId);
+            if (postOpt.isPresent()) {
+                MyPost post = postOpt.get();
+                post.setStatus(status);
+                
+                // Update admin's issues resolved count if marking as solved
+                if (status.equalsIgnoreCase("solved")) {
+                    cofixService.incrementAdminIssuesResolved(adminEmail);
+                }
+                
+                MyPost updatedPost = cofixService.getPostsRepo().save(post);
+                return ResponseEntity.ok(updatedPost);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error updating issue status: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/admin/dashboard-stats")
+    @CrossOrigin(origins = "http://localhost:5173")
+    public ResponseEntity<Map<String, Object>> getDashboardStats(@RequestParam String adminEmail) {
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            
+            // Get all issues
+            List<MyPost> allIssues = cofixService.getAllIssues();
+            
+            // Calculate monthly stats with proper sorting
+            Map<String, Integer> monthlyStats = new TreeMap<>(); // Using TreeMap for natural ordering
+            String[] months = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+            
+            // Initialize all months with 0
+            for (String month : months) {
+                monthlyStats.put(month, 0);
+            }
+            
+            // Update counts for months that have issues
+            for (MyPost issue : allIssues) {
+                String month = issue.getCreateDate().getMonth().toString().substring(0, 3).toUpperCase();
+                monthlyStats.merge(month, 1, Integer::sum);
+            }
+            
+            // Convert to list format for frontend
+            List<Map<String, Object>> issuesByMonth = monthlyStats.entrySet().stream()
+                .map(entry -> {
+                    Map<String, Object> monthData = new HashMap<>();
+                    monthData.put("month", entry.getKey());
+                    monthData.put("count", entry.getValue());
+                    return monthData;
+                })
+                .collect(Collectors.toList());
+
+            // Calculate various issue counts
+            long totalIssues = allIssues.size();
+            long pendingIssues = allIssues.stream()
+                .filter(issue -> "PENDING".equalsIgnoreCase(issue.getStatus()))
+                .count();
+            long resolvedIssues = allIssues.stream()
+                .filter(issue -> "SOLVED".equalsIgnoreCase(issue.getStatus()))
+                .count();
+            long communityIssues = allIssues.stream()
+                .filter(issue -> BenefitTypes.COMMUNITY_ISSUE.equals(issue.getBenefitType()))
+                .count();
+            long governmentSchemes = allIssues.stream()
+                .filter(issue -> BenefitTypes.GOVERNMENT_SCHEME.equals(issue.getBenefitType()))
+                .count();
+            long criticalIssues = allIssues.stream()
+                .filter(issue -> "HIGH".equalsIgnoreCase(issue.getUrgency()))
+                .count();
+
+            // Get admin's resolved issues
+            Optional<AdminUser> adminOpt = cofixService.getAdminByEmail(adminEmail);
+            int adminResolvedIssues = adminOpt.map(AdminUser::getIssuesResolved).orElse(0);
+
+            // Get recent activity (last 5 issues) with proper sorting
+            List<Map<String, Object>> recentActivity = allIssues.stream()
+                .sorted((a, b) -> b.getCreateDate().compareTo(a.getCreateDate()))
+                .limit(5)
+                .map(issue -> {
+                    Map<String, Object> activity = new HashMap<>();
+                    activity.put("id", issue.getPostId());
+                    activity.put("title", issue.getIssueName());
+                    activity.put("type", issue.getBenefitType());
+                    activity.put("status", issue.getStatus());
+                    activity.put("date", issue.getFormattedDate());
+                    activity.put("userEmail", issue.getEmail());
+                    activity.put("urgency", issue.getUrgency());
+                    activity.put("description", issue.getDescription());
+                    return activity;
+                })
+                .collect(Collectors.toList());
+
+            // Compile all stats
+            stats.put("totalIssues", totalIssues);
+            stats.put("pendingIssues", pendingIssues);
+            stats.put("resolvedIssues", resolvedIssues);
+            stats.put("communityIssues", communityIssues);
+            stats.put("governmentSchemes", governmentSchemes);
+            stats.put("criticalIssues", criticalIssues);
+            stats.put("adminResolvedIssues", adminResolvedIssues);
+            stats.put("issuesByMonth", issuesByMonth);
+            stats.put("recentActivity", recentActivity);
+            
+            // Calculate resolution rate
+            double resolutionRate = totalIssues > 0 ? 
+                ((double) resolvedIssues / totalIssues) * 100 : 0;
+            stats.put("resolutionRate", Math.round(resolutionRate * 100.0) / 100.0);
+
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            logger.error("Error fetching dashboard stats: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/admin/profile")
+    @CrossOrigin(origins = "http://localhost:5173")
+    public ResponseEntity<AdminUser> getAdminProfile(@RequestParam String email) {
+        try {
+            Optional<AdminUser> admin = cofixService.getAdminByEmail(email);
+            if (admin.isPresent()) {
+                return ResponseEntity.ok(admin.get());
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error fetching admin profile: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

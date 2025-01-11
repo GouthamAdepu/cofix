@@ -140,9 +140,18 @@ export default function Index() {
             </button>
           </div>
         ) : (
-          <Link to="/login" className="text-indigo-600 hover:text-indigo-800">
-            Login
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link to="/login" className="text-indigo-600 hover:text-indigo-800">
+              Login
+            </Link>
+            <Link 
+              to="/admin/login" 
+              className="flex items-center gap-1 text-gray-600 hover:text-indigo-600"
+            >
+              <Shield className="h-4 w-4" />
+              Admin Portal
+            </Link>
+          </div>
         )}
       </Navbar>
       <div className="pt-16">
@@ -292,6 +301,12 @@ export default function Index() {
                   <li>
                     <Link to="/signup" className="text-gray-500 hover:text-indigo-600 text-sm">
                       Sign Up
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/admin/login" className="text-gray-500 hover:text-indigo-600 text-sm flex items-center gap-1">
+                      <Shield className="h-4 w-4" />
+                      Admin Portal
                     </Link>
                   </li>
                   <li>

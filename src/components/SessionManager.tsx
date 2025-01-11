@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const SESSION_TIMEOUT = 5 * 1000; // 30 seconds in milliseconds
+const SESSION_TIMEOUT = 50 * 60 * 1000; // 30 seconds in milliseconds
 let timeoutId: ReturnType<typeof setTimeout>;
 
 export default function SessionManager() {

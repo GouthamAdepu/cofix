@@ -17,6 +17,7 @@ import java.util.Base64;
 @Slf4j
 public class HikariCPConfig {
 
+    private static final Logger logger = LoggerFactory.getLogger(HikariCPConfig.class);
 
     @Autowired
     Environment env;
@@ -24,7 +25,7 @@ public class HikariCPConfig {
 
     @Bean
     public HikariDataSource postgresdbDataSource() {
-        log.info("Initializing Postgres Database connection pool");
+        logger.info("Initializing Postgres Database connection pool");
         String pgUser;
         String pgPassword;
         pgUser = env.getProperty("spring.postgres.datasource.username");
@@ -43,7 +44,7 @@ public class HikariCPConfig {
             dataSource.setPassword(pgPassword);
         }
         catch (Exception e) {
-            log.error("Failed to Init Postgres Database pool : ",e);
+            logger.error("Failed to Init Postgres Database pool : ",e);
         }
         return dataSource;
     }

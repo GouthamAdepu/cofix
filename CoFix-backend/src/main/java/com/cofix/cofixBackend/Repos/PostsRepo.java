@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PostsRepo extends JpaRepository<MyPost, PostPk> {
@@ -14,6 +15,7 @@ public interface PostsRepo extends JpaRepository<MyPost, PostPk> {
     List<MyPost> findByEmailAndBenefitType(String email, BenefitTypes benefitType);
     List<MyPost> findByBenefitType(BenefitTypes benefitTypes);
     void deleteByPostId(Long postId);
+    Optional<MyPost> findByPostId(Long postId);
 
 //    MyPost findByEmailAndPostId(String email,String postId);
 }
