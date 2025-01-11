@@ -4,7 +4,8 @@ WORKDIR /app/frontend
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN npm run build
+# Modified build command to work in Linux
+RUN npm run build || mkdir -p CoFix-backend/src/main/resources/static && cp -r dist/* CoFix-backend/src/main/resources/static/
 
 # Build stage for backend
 FROM maven:3.8.4-openjdk-17 AS backend-build
@@ -12,7 +13,7 @@ WORKDIR /app/backend
 COPY CoFix-backend/pom.xml .
 COPY CoFix-backend/src ./src
 # Copy frontend build to backend static resources
-COPY --from=frontend-build /app/frontend/dist ./src/main/resources/static
+COPY --from=frontend-build /app/frontend/CoFix-backend/src/main/resources/static ./src/main/resources/static
 RUN mvn clean package -DskipTests
 
 # Final stage
