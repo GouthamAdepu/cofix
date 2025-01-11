@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminDashboardLayout from '../components/AdminDashboardLayout';
-import { User } from 'lucide-react';
+import { User, Award, CheckCircle, Clock } from 'lucide-react';
 
 interface AdminProfile {
   email: string;
@@ -12,7 +12,7 @@ interface AdminProfile {
 }
 
 export default function AdminProfile() {
-  const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState<AdminProfile>({
     email: '',
     name: '',
     adminLevel: 1,
@@ -20,6 +20,7 @@ export default function AdminProfile() {
     createdAt: '',
     lastLogin: ''
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchAdminProfile();
@@ -40,92 +41,115 @@ export default function AdminProfile() {
       }
     } catch (error) {
       console.error('Error fetching admin profile:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleProfileUpdate = async (updatedData: any) => {
-    try {
-      const response = await fetch('http://localhost:8000/api/admin/profile/update', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedData)
-      });
-
-      if (response.ok) {
-        const updatedProfile = await response.json();
-        setProfile(updatedProfile);
-      }
-    } catch (error) {
-      console.error('Error updating admin profile:', error);
-    }
-  };
+  if (loading) {
+    return (
+      <AdminDashboardLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        </div>
+      </AdminDashboardLayout>
+    );
+  }
 
   return (
     <AdminDashboardLayout>
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          {/* Profile Header */}
-          <div className="bg-indigo-600 px-4 py-5 sm:px-6">
-            <div className="flex items-center">
-              <div className="bg-white p-2 rounded-full">
-                <User className="h-8 w-8 text-indigo-600" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Profile Header */}
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-8">
+            <div className="flex items-center space-x-4">
+              <div className="h-20 w-20 bg-white rounded-full flex items-center justify-center">
+                <User className="h-12 w-12 text-blue-600" />
               </div>
-              <h3 className="ml-3 text-lg font-medium text-white">Admin Profile</h3>
+              <div>
+                <h1 className="text-2xl font-bold text-white">{profile.name}</h1>
+                <p className="text-blue-200">Administrator</p>
+              </div>
             </div>
           </div>
-
-          {/* Profile Content */}
-          <div className="px-4 py-5 sm:p-6">
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2">
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Email</dt>
-                <dd className="mt-1 text-sm text-gray-900">{profile.email}</dd>
+          
+          {/* Basic Info */}
+          <div className="px-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Email</p>
+                <p className="font-medium">{profile.email}</p>
               </div>
-
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Admin Role</dt>
-                <dd className="mt-1 text-sm text-gray-900">{profile.name}</dd>
-              </div>
-
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Joined Date</dt>
-                <dd className="mt-1 text-sm text-gray-900">
+              <div>
+                <p className="text-sm text-gray-500">Member Since</p>
+                <p className="font-medium">
                   {new Date(profile.createdAt).toLocaleDateString()}
-                </dd>
+                </p>
               </div>
+            </div>
+          </div>
+        </div>
 
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Issues Resolved</dt>
-                <dd className="mt-1 text-sm text-gray-900">{profile.issuesResolved}</dd>
-              </div>
-            </dl>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Issues Resolved Card */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Issues Resolved</h3>
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            </div>
+            <p className="text-3xl font-bold text-green-600">{profile.issuesResolved}</p>
+            <p className="text-sm text-gray-500 mt-2">Total issues successfully resolved</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mt-6">
-            <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Performance Stats</h3>
-              <dl className="grid grid-cols-1 gap-4">
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Issues Resolved</dt>
-                  <dd className="mt-1 text-3xl font-semibold text-indigo-600">
-                    {profile.issuesResolved}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Admin Level</dt>
-                  <dd className="mt-1 text-3xl font-semibold text-indigo-600">
-                    Level {profile.adminLevel}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Last Login</dt>
-                  <dd className="mt-1 text-sm text-gray-900">
-                    {profile.lastLogin ? new Date(profile.lastLogin).toLocaleString() : 'N/A'}
-                  </dd>
-                </div>
-              </dl>
+          {/* Admin Level Card */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Admin Level</h3>
+              <Award className="h-8 w-8 text-blue-500" />
+            </div>
+            <p className="text-3xl font-bold text-blue-600">Level {profile.adminLevel}</p>
+            <p className="text-sm text-gray-500 mt-2">Current administration level</p>
+          </div>
+
+          {/* Last Login Card */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Last Login</h3>
+              <Clock className="h-8 w-8 text-purple-500" />
+            </div>
+            <p className="text-xl font-semibold text-purple-600">
+              {new Date(profile.lastLogin).toLocaleString()}
+            </p>
+            <p className="text-sm text-gray-500 mt-2">Most recent login timestamp</p>
+          </div>
+        </div>
+
+        {/* Activity Timeline */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Resolved {profile.issuesResolved} issues
+                </p>
+                <p className="text-sm text-gray-500">Total resolution count</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <Award className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  Achieved Level {profile.adminLevel}
+                </p>
+                <p className="text-sm text-gray-500">Current admin status</p>
+              </div>
             </div>
           </div>
         </div>

@@ -873,4 +873,33 @@ public class CofixLoginController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    @PutMapping("/api/admin/issues/{id}/resolve")
+    @CrossOrigin(origins = "http://localhost:5173", methods = {RequestMethod.PUT, RequestMethod.OPTIONS})
+    public ResponseEntity<?> resolveIssue(
+        @PathVariable("id") Long id,
+        @RequestParam("resolutionDescription") String resolutionDescription,
+        @RequestParam(value = "resolutionImage", required = false) MultipartFile resolutionImage
+    ) {
+        try {
+            MyPost post = cofixService.getPostsRepo().findById(id).orElse(null);
+            if (post == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            post.setStatus("resolved");
+            post.setResolutionDescription(resolutionDescription);
+
+            if (resolutionImage != null && !resolutionImage.isEmpty()) {
+                String base64Image = Base64.getEncoder().encodeToString(resolutionImage.getBytes());
+                post.setResolutionImage(base64Image);
+            }
+
+            cofixService.getPostsRepo().save(post);
+            return ResponseEntity.ok(post);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error resolving issue: " + e.getMessage());
+        }
+    }
 }
